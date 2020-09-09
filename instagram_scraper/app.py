@@ -90,13 +90,13 @@ class InstagramScraper(object):
         default_attr = dict(username='', usernames=[], filename=None,
                             login_user=None, login_pass=None,
                             followings_input=False, followings_output='profiles.txt',
-                            destination='./data/', logger=None, retain_username=False, interactive=False,
+                            destination='./', logger=None, retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, profile_metadata=False, latest=False,
                             latest_stamps=False, cookiejar=None, filter_location=None, filter_locations=None,
                             media_types=['image', 'video', 'story-image', 'story-video', 'broadcast'],
                             tag=False, location=False, search_location=False, comments=False,
                             verbose=0, include_location=False, filter=None, proxies={}, no_check_certificate=False,
-                                                        template='{urlname}', log_destination='')
+                            template='{urlname}', log_destination='')
 
         allowed_attr = list(default_attr.keys())
         default_attr.update(kwargs)
@@ -129,10 +129,12 @@ class InstagramScraper(object):
         self.posts = []
         self.stories = []
 
+        # session
         self.session = requests.Session()
         if self.no_check_certificate:
             self.session.verify = False
 
+        # proxies
         try:
             if self.proxies and type(self.proxies) == str:
                 self.session.proxies = json.loads(self.proxies)
@@ -154,6 +156,12 @@ class InstagramScraper(object):
         if default_attr['filter']:
             self.filter = list(self.filter)
         self.quit = False
+
+        # download flag
+        self.download_flag = True
+        if kwargs.get("dd") is not None:
+            self.download_flag = False
+
 
     def sleep(self, secs):
         min_delay = 1
@@ -182,6 +190,7 @@ class InstagramScraper(object):
                 self.logger.info( 'The user has chosen to abort' )
                 return None
 
+    # safe get request (request with delay)
     def safe_get(self, *args, **kwargs):
         # out of the box solution
         # session.mount('https://', HTTPAdapter(max_retries=...))
@@ -315,6 +324,7 @@ class InstagramScraper(object):
             except requests.exceptions.RequestException:
                 self.logger.warning('Failed to log out ' + self.login_user)
 
+    # destination dir
     def get_dst_dir(self, username):
         """Gets the destination directory and last scraped file time."""
         if self.destination == './':
@@ -1072,6 +1082,10 @@ class InstagramScraper(object):
     def download(self, item, save_dir='./'):
         """Downloads the media file."""
 
+        # check flag to download media or not
+        if not self.download_flag:
+            return
+
         if self.filter_locations:
             save_dir = os.path.join(save_dir, self.get_key_from_value(self.filter_locations, item["location"]["id"]))
         
@@ -1359,6 +1373,7 @@ class InstagramScraper(object):
 
         return logger
 
+    # extract list of usernames from a file
     @staticmethod
     def get_values_from_file(usernames_file):
         """Parses a file containing a list of usernames."""
@@ -1446,6 +1461,10 @@ class InstagramScraper(object):
 
 
 def main():
+
+    # time elapsed
+    start = time.time()
+
     parser = argparse.ArgumentParser(
         description="instagram-scraper scrapes and downloads an instagram user's photos and videos.",
         epilog=textwrap.dedent("""
@@ -1485,7 +1504,7 @@ def main():
         fromfile_prefix_chars='@')
 
     parser.add_argument('username', help='Instagram user(s) to scrape', nargs='*')
-    parser.add_argument('--destination', '-d', default='./data/', help='Download destination')
+    parser.add_argument('--destination', '-d', default='./', help='Download destination')
     parser.add_argument('--login-user', '--login_user', '-u', default=None, help='Instagram login user')
     parser.add_argument('--login-pass', '--login_pass', '-p', default=None, help='Instagram login password')
     parser.add_argument('--followings-input', '--followings_input', action='store_true', default=False,
@@ -1525,7 +1544,8 @@ def main():
     parser.add_argument('--verbose', '-v', type=int, default=0, help='Logging verbosity level')
     parser.add_argument('--template', '-T', type=str, default='{urlname}', help='Customize filename template')
     parser.add_argument('--log_destination', '-l', type=str, default='', help='destination folder for the instagram-scraper.log file')
-
+    parser.add_argument('-dd', help='disable downloding', nargs='*')
+    
     args = parser.parse_args()
 
     if (args.login_user and args.login_pass is None) or (args.login_user is None and args.login_pass):
@@ -1571,6 +1591,7 @@ def main():
         global MAX_RETRIES
         MAX_RETRIES = sys.maxsize
 
+    # init class
     scraper = InstagramScraper(**vars(args))
 
     if args.login_user and args.login_pass:
@@ -1599,6 +1620,9 @@ def main():
         scraper.scrape()
 
     scraper.save_cookies()
+
+    # time elapsed
+    print("time elapsed =", time.time() - start)
 
 
 if __name__ == '__main__':
