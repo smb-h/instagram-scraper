@@ -90,7 +90,7 @@ class InstagramScraper(object):
         default_attr = dict(username='', usernames=[], filename=None,
                             login_user=None, login_pass=None,
                             followings_input=False, followings_output='profiles.txt',
-                            destination='./', logger=None, retain_username=False, interactive=False,
+                            destination='./data/', logger=None, retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, profile_metadata=False, latest=False,
                             latest_stamps=False, cookiejar=None, filter_location=None, filter_locations=None,
                             media_types=['image', 'video', 'story-image', 'story-video', 'broadcast'],
@@ -1485,7 +1485,7 @@ def main():
         fromfile_prefix_chars='@')
 
     parser.add_argument('username', help='Instagram user(s) to scrape', nargs='*')
-    parser.add_argument('--destination', '-d', default='./', help='Download destination')
+    parser.add_argument('--destination', '-d', default='./data/', help='Download destination')
     parser.add_argument('--login-user', '--login_user', '-u', default=None, help='Instagram login user')
     parser.add_argument('--login-pass', '--login_pass', '-p', default=None, help='Instagram login password')
     parser.add_argument('--followings-input', '--followings_input', action='store_true', default=False,
@@ -1603,3 +1603,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

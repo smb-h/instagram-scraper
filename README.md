@@ -117,7 +117,7 @@ OPTIONS
 --filename    -f        Path to a file containing a list of users to scrape.
 
 --destination -d        Specify the download destination. By default, media will 
-                        be downloaded to <current working directory>/<username>.
+                        be downloaded to <current working directory>/data/<username>.
 
 --retain-username -n    Creates a username subdirectory when the destination flag is
                         set.
