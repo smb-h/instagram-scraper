@@ -195,6 +195,8 @@ OPTIONS
 
 -dd                     Disable downloading media, only store json data.
 
+--tor-proxy             Use tor proxy on system. tor needs to be installed first, using default hash "password" to auth.
+
 ```
 
 Develop
