@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/fun/VEnv/scraper/bin/python3
 
 import argparse
 import codecs
