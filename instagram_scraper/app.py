@@ -1,6 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 import argparse
 import codecs
 import configparser
@@ -31,8 +28,12 @@ import concurrent.futures
 import requests
 import requests.packages.urllib3.util.connection as urllib3_connection
 import tqdm
+import random
+from stem import Signal
+from stem.control import Controller
+from fake_useragent import UserAgent
 
-from instagram_scraper.constants import *
+from config.constants import *
 
 try:
     reload(sys)  # Python 2.7
@@ -86,6 +87,7 @@ class PartialContentException(Exception):
 class InstagramScraper(object):
     """InstagramScraper scrapes and downloads an instagram user's photos and videos"""
 
+    # init
     def __init__(self, **kwargs):
         default_attr = dict(username='', usernames=[], filename=None,
                             login_user=None, login_pass=None,
@@ -141,7 +143,11 @@ class InstagramScraper(object):
         except ValueError:
             self.logger.error("Check is valid json type.")
             raise
-
+        # tor proxies
+        if kwargs.get("tor_proxy") is not None:
+            # tor_proxies = {'http': 'socks5://127.0.0.1:9050', 'https': 'socks5://127.0.0.1:9050'}
+            self.session.proxies = json.loads('{"http": "socks5://127.0.0.1:9050", "http": "socks5://127.0.0.1:9050" }')
+            
         self.session.headers = {'user-agent': CHROME_WIN_UA}
         if self.cookiejar and os.path.exists(self.cookiejar):
             with open(self.cookiejar, 'rb') as f:
@@ -162,7 +168,7 @@ class InstagramScraper(object):
         if kwargs.get("dd") is not None:
             self.download_flag = False
 
-
+    # sleep
     def sleep(self, secs):
         min_delay = 1
         for _ in range(secs // min_delay):
@@ -173,6 +179,7 @@ class InstagramScraper(object):
 
     def _retry_prompt(self, url, exception_message):
         """Show prompt and return True: retry, False: ignore, None: abort"""
+
         answer = input( 'Repeated error {0}\n(A)bort, (I)gnore, (R)etry or retry (F)orever?'.format(exception_message) )
         if answer:
             answer = answer[0].upper()
@@ -190,6 +197,14 @@ class InstagramScraper(object):
                 self.logger.info( 'The user has chosen to abort' )
                 return None
 
+    # tor renew connection
+    # signal TOR for a new connection 
+    # https://stackoverflow.com/questions/30286293/make-requests-using-python-over-tor
+    def renew_connection(self):
+        with Controller.from_port(port = 9051) as c:
+            c.authenticate(password="password")
+            c.signal(Signal.NEWNYM)
+
     # safe get request (request with delay)
     def safe_get(self, *args, **kwargs):
         # out of the box solution
@@ -203,8 +218,14 @@ class InstagramScraper(object):
                 return
             try:
                 response = self.session.get(timeout=CONNECT_TIMEOUT, cookies=self.cookies, *args, **kwargs)
+                # print(response.url)
                 if response.status_code == 404:
                     return
+
+                # blocked ip
+                if response.status_code == 429:
+                    self.renew_connection()
+
                 response.raise_for_status()
                 content_length = response.headers.get('Content-Length')
                 if content_length is not None and len(response.content) != int(content_length):
@@ -255,9 +276,7 @@ class InstagramScraper(object):
         """Logs in to instagram."""
         self.session.headers.update({'Referer': BASE_URL, 'user-agent': STORIES_UA})
         req = self.session.get(BASE_URL)
-
         self.session.headers.update({'X-CSRFToken': req.cookies['csrftoken']})
-
         login_data = {'username': self.login_user, 'password': self.login_pass}
         login = self.session.post(LOGIN_URL, data=login_data, allow_redirects=True)
         self.session.headers.update({'X-CSRFToken': login.cookies['csrftoken']})
@@ -1352,13 +1371,15 @@ class InstagramScraper(object):
                 else:
                     self.save_json({'GraphStories': self.stories}, metadata_path)
 
+    # logger
     @staticmethod
     def get_logger(level=logging.DEBUG, dest='', verbose=0):
         """Returns a logger."""
         logger = logging.getLogger(__name__)
 
         dest +=  '/' if (dest !=  '') and dest[-1] != '/' else ''
-        fh = logging.FileHandler(dest + 'instagram-scraper.log', 'w')
+        # fh = logging.FileHandler(dest + 'instagram-scraper.log', 'w')
+        fh = logging.FileHandler(dest + 'instagram-scraper.log', 'a')
         fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         fh.setLevel(level)
         logger.addHandler(fh)
@@ -1544,8 +1565,11 @@ def main():
     parser.add_argument('--verbose', '-v', type=int, default=0, help='Logging verbosity level')
     parser.add_argument('--template', '-T', type=str, default='{urlname}', help='Customize filename template')
     parser.add_argument('--log_destination', '-l', type=str, default='', help='destination folder for the instagram-scraper.log file')
+    # disable downloading
     parser.add_argument('-dd', help='disable downloding', nargs='*')
-    
+    # use tor proxy
+    parser.add_argument('--tor-proxy', help='disable downloding', nargs='*')
+
     args = parser.parse_args()
 
     if (args.login_user and args.login_pass is None) or (args.login_user is None and args.login_pass):
