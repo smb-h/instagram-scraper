@@ -227,7 +227,7 @@ class InstagramScraper(object):
                 # blocked ip
                 if response.status_code == 429:
                     self.renew_connection()
-                    print("renew connection!")
+                    print("\n", "renew connection!")
 
                 response.raise_for_status()
                 content_length = response.headers.get('Content-Length')
