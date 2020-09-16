@@ -170,6 +170,16 @@ class InstagramScraper(object):
         if kwargs.get("dd") is not None:
             self.download_flag = False
 
+
+        # available users
+        self.active_username = "smbhop"
+        self.available_users = {
+            "smbhop": "ahRx8PXeNCvE6EP",
+            "smb__h": "3!M>Z*(VhZkB",
+        }
+        self.login_user = "smb__h"
+        self.login_pass = self.available_users.get(self.login_user)
+
     # sleep
     def sleep(self, secs):
         min_delay = 1
@@ -204,8 +214,12 @@ class InstagramScraper(object):
     # https://stackoverflow.com/questions/30286293/make-requests-using-python-over-tor
     def renew_connection(self):
         with Controller.from_port(port = 9051) as c:
+            self.sleep(15)
+            current_ip = requests.get('https://ident.me').text
             c.authenticate(password="password")
             c.signal(Signal.NEWNYM)
+            new_ip = requests.get('https://ident.me').text
+            self.logger.warning("renew connection! ", current_ip, " => ", new_ip)
 
     # safe get request (request with delay)
     def safe_get(self, *args, **kwargs):
@@ -215,6 +229,9 @@ class InstagramScraper(object):
         # It doesnt work when server terminate connection while response is downloaded
         retry = 0
         retry_delay = RETRY_DELAY
+
+        # self.sleep(15)
+
         while True:
             if self.quit:
                 return
@@ -227,7 +244,15 @@ class InstagramScraper(object):
                 # blocked ip
                 if response.status_code == 429:
                     self.renew_connection()
-                    print("\n", "renew connection!")
+                    # change user
+                    if self.login_user == "smb__h":
+                        self.login_user = "smbhop"
+                        self.login_pass = self.available_users.get(self.login_user)
+                    else:
+                        self.login_user = "smb__h"
+                        self.login_pass = self.available_users.get(self.login_user)
+                    self.logout()
+                    self.authenticate_with_login()
 
                 response.raise_for_status()
                 content_length = response.headers.get('Content-Length')
@@ -285,6 +310,7 @@ class InstagramScraper(object):
         self.session.headers.update({'X-CSRFToken': login.cookies['csrftoken']})
         self.cookies = login.cookies
         login_text = json.loads(login.text)
+        self.logger.warning('log in as ' + self.login_user)
 
         if login_text.get('authenticated') and login.status_code == 200:
             self.authenticated = True
@@ -343,6 +369,7 @@ class InstagramScraper(object):
                 self.session.post(LOGOUT_URL, data=logout_data)
                 self.authenticated = False
                 self.logged_in = False
+                self.logger.warning('log out ' + self.login_user)
             except requests.exceptions.RequestException:
                 self.logger.warning('Failed to log out ' + self.login_user)
 
@@ -1381,8 +1408,7 @@ class InstagramScraper(object):
         logger = logging.getLogger(__name__)
 
         dest +=  '/' if (dest !=  '') and dest[-1] != '/' else ''
-        # fh = logging.FileHandler(dest + 'instagram-scraper.log', 'w')
-        fh = logging.FileHandler(dest + 'instagram-scraper.log', 'a')
+        fh = logging.FileHandler(dest + 'instagram-scraper.log', 'w')
         fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         fh.setLevel(level)
         logger.addHandler(fh)
@@ -1649,7 +1675,8 @@ def main():
     scraper.save_cookies()
 
     # time elapsed
-    print("time elapsed =", time.time() - start)
+    print("time elapsed : ", time.time() - start)
+    scraper.logger.warning('time elapsed : ' + str(time.time() - start))
 
 
 if __name__ == '__main__':
