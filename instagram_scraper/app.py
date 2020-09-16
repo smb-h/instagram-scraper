@@ -212,14 +212,15 @@ class InstagramScraper(object):
     # tor renew connection
     # signal TOR for a new connection 
     # https://stackoverflow.com/questions/30286293/make-requests-using-python-over-tor
-    def renew_connection(self):
+    def renew_connection(self, *args, **kwargs):
         with Controller.from_port(port = 9051) as c:
             self.sleep(15)
-            current_ip = requests.get('https://ident.me').text
+            current_ip = self.session.get('https://ident.me', *args, **kwargs).text
             c.authenticate(password="password")
             c.signal(Signal.NEWNYM)
-            new_ip = requests.get('https://ident.me').text
-            self.logger.warning("renew connection! ", current_ip, " => ", new_ip)
+            new_ip = self.session.get('https://ident.me', *args, **kwargs).text
+            # self.logger.warning("renew connection! " + current_ip + " => " + new_ip)
+            self.logger.warning("renew connection!")
 
     # safe get request (request with delay)
     def safe_get(self, *args, **kwargs):
@@ -229,8 +230,6 @@ class InstagramScraper(object):
         # It doesnt work when server terminate connection while response is downloaded
         retry = 0
         retry_delay = RETRY_DELAY
-
-        # self.sleep(15)
 
         while True:
             if self.quit:
@@ -244,6 +243,7 @@ class InstagramScraper(object):
                 # blocked ip
                 if response.status_code == 429:
                     self.renew_connection()
+                    self.logout()
                     # change user
                     if self.login_user == "smb__h":
                         self.login_user = "smbhop"
@@ -251,7 +251,6 @@ class InstagramScraper(object):
                     else:
                         self.login_user = "smb__h"
                         self.login_pass = self.available_users.get(self.login_user)
-                    self.logout()
                     self.authenticate_with_login()
 
                 response.raise_for_status()
@@ -310,13 +309,13 @@ class InstagramScraper(object):
         self.session.headers.update({'X-CSRFToken': login.cookies['csrftoken']})
         self.cookies = login.cookies
         login_text = json.loads(login.text)
-        self.logger.warning('log in as ' + self.login_user)
 
         if login_text.get('authenticated') and login.status_code == 200:
             self.authenticated = True
             self.logged_in = True
             self.session.headers.update({'user-agent': CHROME_WIN_UA})
             self.rhx_gis = ""
+            self.logger.warning('log in as ' + self.login_user)
         else:
             self.logger.error('Login failed for ' + self.login_user)
 
